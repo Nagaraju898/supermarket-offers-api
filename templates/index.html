@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OfferFinder — Supermarket Deals</title>
+  <style>
+    :root{font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#17211b;background:#f5f7f4}
+    *{box-sizing:border-box}body{margin:0}header{background:#153c2b;color:white;padding:28px max(20px,calc((100% - 1100px)/2))}
+    header h1{margin:0;font-size:28px}header p{margin:7px 0 0;color:#d4e7db}
+    main{max-width:1100px;margin:28px auto;padding:0 20px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+    input,button{font:inherit;border-radius:10px;padding:12px 14px;border:1px solid #d5ddd6}
+    input{background:white;flex:1;min-width:180px}button{background:#176b45;color:white;border:0;cursor:pointer;font-weight:650}
+    button:hover{background:#105638}.meta{color:#65736a;font-size:14px;margin-bottom:14px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+    .card{background:white;border:1px solid #e1e8e1;border-radius:16px;padding:20px;box-shadow:0 4px 16px #153c2b08}
+    .pill{display:inline-block;background:#e3f5e9;color:#176b45;padding:5px 9px;border-radius:99px;font-size:13px;font-weight:700}
+    .card h2{font-size:19px;margin:13px 0 7px}.shop{font-weight:700;color:#526057}.desc{color:#68766d;line-height:1.5}
+    .date{border-top:1px solid #edf0ed;padding-top:12px;color:#526057;font-size:13px;margin-top:16px}
+    .empty{padding:38px;text-align:center;background:white;border-radius:14px;color:#65736a;grid-column:1/-1}
+    @media(max-width:500px){header h1{font-size:23px}.toolbar button{width:100%}}
+  </style>
+</head>
+<body>
+<header><h1>🛍️ OfferFinder</h1><p>Discover fresh deals from your local supermarkets.</p></header>
+<main>
+  <div class="toolbar">
+    <input id="search" placeholder="Search offers or supermarkets…" aria-label="Search offers">
+    <input id="discount" type="number" min="0" max="100" placeholder="Minimum discount %" aria-label="Minimum discount">
+    <button id="searchBtn">Find offers</button>
+  </div>
+  <div id="status" class="meta">Loading current offers…</div>
+  <section id="offers" class="grid" aria-live="polite"></section>
+</main>
+<script>
+const offersNode = document.querySelector("#offers");
+const statusNode = document.querySelector("#status");
+function safe(value) {
+  return String(value ?? "").replace(/[&<>"']/g, ch => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[ch]));
+}
+async function loadOffers() {
+  statusNode.textContent = "Loading current offers…";
+  const params = new URLSearchParams();
+  const q = document.querySelector("#search").value.trim();
+  const discount = document.querySelector("#discount").value;
+  if (q) params.set("q", q);
+  if (discount !== "") params.set("min_discount", discount);
+  try {
+    const response = await fetch(`/api/offers?${params.toString()}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to load offers");
+    statusNode.textContent = `${data.total} available offer${data.total === 1 ? "" : "s"}`;
+    if (!data.offers.length) {
+      offersNode.innerHTML = '<div class="empty">No current offers match your search. Try another keyword or discount.</div>';
+      return;
+    }
+    offersNode.innerHTML = data.offers.map(o => `
+      <article class="card">
+        <span class="pill">${safe(o.discount_percent)}% OFF</span>
+        <h2>${safe(o.title)}</h2>
+        <div class="shop">${safe(o.supermarket_name)}</div>
+        <p class="desc">${safe(o.description || "Special offer available for a limited time.")}</p>
+        <div class="date">Valid until ${new Date(o.end_date).toLocaleString()}</div>
+      </article>`).join("");
+  } catch (err) {
+    statusNode.textContent = err.message;
+    offersNode.innerHTML = '<div class="empty">Could not load offers. Please try again.</div>';
+  }
+}
+document.querySelector("#searchBtn").addEventListener("click", loadOffers);
+document.querySelector("#search").addEventListener("keydown", e => { if(e.key === "Enter") loadOffers(); });
+loadOffers();
+</script>
+</body>
+</html>
